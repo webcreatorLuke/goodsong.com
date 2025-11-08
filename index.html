@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Music Player with Library</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 40px; background: #f8f8f8; }
+    .song-list, .library-list { margin: 20px 0; }
+    .controls button { margin: 0 5px; }
+    .starred { color: gold; font-size: 1.2em; }
+    #libraryModal { display:none; position:fixed; left:0; top:0; width:100vw; height:100vh; background:rgba(0,0,0,0.4); }
+    #libraryContent { background:#fff; padding:20px; width:300px; margin:10vh auto; border-radius:5px; }
+  </style>
+</head>
+<body>
+
+<h2>Recommended Songs</h2>
+<div class="song-list" id="songList"></div>
+
+<div class="controls">
+  <button onclick="rewind()">⏪ Rewind</button>
+  <button onclick="playPause()" id="playPauseBtn">▶️ Play</button>
+  <button onclick="fastForward()">⏩ Fast Forward</button>
+  <button onclick="skip()">⏭️ Skip</button>
+  <button onclick="toggleStar()" id="starBtn">⭐ Star</button>
+  <button onclick="openLibrary()">📚 Library</button>
+</div>
+
+<!-- Audio Player -->
+<audio id="audioPlayer" preload="auto" onended="skip()"></audio>
+
+<!-- Library Modal -->
+<div id="libraryModal">
+  <div id="libraryContent">
+    <h3>Your Library</h3>
+    <div class="library-list" id="libraryList"></div>
+    <button onclick="closeLibrary()">Close</button>
+  </div>
+</div>
+
+<script>
+const recommendedSongs = [
+  { title: "Song One", artist: "Artist A", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" },
+  { title: "Song Two", artist: "Artist B", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3" },
+  { title: "Song Three", artist: "Artist C", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3" },
+];
+
+let starred = JSON.parse(localStorage.getItem('library')) || [];
+let currentSongIndex = 0;
+let isPlaying = false;
+
+const audio = document.getElementById('audioPlayer');
+const playPauseBtn = document.getElementById('playPauseBtn');
+const starBtn = document.getElementById('starBtn');
+
+// Render recommended song list
+function renderSongList() {
+  const list = document.getElementById('songList');
+  list.innerHTML = '';
+  recommendedSongs.forEach((song, idx) => {
+    const starredClass = starred.some(s => s.url === song.url) ? 'starred' : '';
+    list.innerHTML += `
+      <div>
+        <span>${song.title} <small>by ${song.artist}</small></span>
+        <button onclick="playSong(${idx})">Play</button>
+        <span class="${starredClass}">${starredClass ? '★' : '☆'}</span>
+      </div>
+    `;
+  });
+}
+
+// Play song by index
+function playSong(idx) {
+  currentSongIndex = idx;
+  audio.src = recommendedSongs[idx].url;
+  audio.play();
+  isPlaying = true;
+  playPauseBtn.textContent = '⏸️ Pause';
+  updateStarBtn();
+}
+
+// Play/pause toggle
+function playPause() {
+  if (isPlaying) {
+    audio.pause();
+    playPauseBtn.textContent = '▶️ Play';
+    isPlaying = false;
+  } else {
+    audio.play();
+    playPauseBtn.textContent = '⏸️ Pause';
+    isPlaying = true;
+  }
+}
+
+// Skip to next song
+function skip() {
+  currentSongIndex = (currentSongIndex + 1) % recommendedSongs.length;
+  playSong(currentSongIndex);
+}
+
+// Rewind -10 seconds
+function rewind() {
+  audio.currentTime = Math.max(audio.currentTime - 10, 0);
+}
+
+// Fast-forward +10 seconds
+function fastForward() {
+  audio.currentTime = Math.min(audio.currentTime + 10, audio.duration || 9000);
+}
+
+// Toggle star on current song
+function toggleStar() {
+  const song = recommendedSongs[currentSongIndex];
+  const idx = starred.findIndex(s => s.url === song.url);
+  if (idx > -1) {
+    starred.splice(idx,1);
+  } else {
+    starred.push(song);
+  }
+  localStorage.setItem('library', JSON.stringify(starred));
+  renderSongList();
+  updateStarBtn();
+}
+
+// Update star button
+function updateStarBtn() {
+  const song = recommendedSongs[currentSongIndex] || {};
+  if (starred.some(s => s.url === song.url)) {
+    starBtn.textContent = '★ Starred';
+  } else {
+    starBtn.textContent = '☆ Star';
+  }
+}
+
+// Modal: Library
+function openLibrary() {
+  document.getElementById('libraryModal').style.display = 'block';
+  renderLibrary();
+}
+
+function closeLibrary() {
+  document.getElementById('libraryModal').style.display = 'none';
+}
+
+function renderLibrary() {
+  const list = document.getElementById('libraryList');
+  if (starred.length === 0) {
+    list.innerHTML = "<i>No starred songs!</i>";
+    return;
+  }
+  list.innerHTML = starred.map((song, idx) =>
+    `<div>
+      <span>${song.title} <small>by ${song.artist}</small></span>
+      <button onclick="playStarred(${idx})">Play</button>
+      <button onclick="removeStarred(${idx})">Remove</button>
+    </div>`
+  ).join('');
+}
+
+// Play song from library
+function playStarred(idx) {
+  const song = starred[idx];
+  currentSongIndex = recommendedSongs.findIndex(s => s.url === song.url);
+  if (currentSongIndex === -1) {
+    // Not in recommended list, play directly
+    audio.src = song.url;
+  } else {
+    playSong(currentSongIndex);
+    closeLibrary();
+    return;
+  }
+  audio.play();
+  isPlaying = true;
+  playPauseBtn.textContent = '⏸️ Pause';
+  updateStarBtn();
+  closeLibrary();
+}
+
+// Remove from library
+function removeStarred(idx) {
+  starred.splice(idx,1);
+  localStorage.setItem('library', JSON.stringify(starred));
+  renderLibrary();
+  renderSongList();
+  updateStarBtn();
+}
+
+// Start: load first song
+window.onload = () => {
+  renderSongList();
+  if (recommendedSongs.length) playSong(0);
+};
+
+</script>
+</body>
+</html>
